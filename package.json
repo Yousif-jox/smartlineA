@@ -1,0 +1,9 @@
+{
+  "name": "smart-line-assessment",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smart Line — 7-Day Software Engineer Assessment (Day 1: requirements + algorithms)",
+  "scripts": {
+    "test": "node --test tests/day1/"
+  }
+}
