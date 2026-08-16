@@ -1,0 +1,69 @@
+@startuml
+' Day 2 — Task 20: Use Case Diagram (digitized version)
+' Hand-drawn original: docs/handwritten/day2-use-case-diagram.jpg (mandatory first)
+' 15 use cases across the 5 actors from Task 04 (+ System for notifications)
+
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Company Manager" as CM
+actor "Employee" as EM
+actor "Captain" as CA
+actor "Call Center Agent" as AG
+actor "Admin" as AD
+actor "System" as SY
+
+rectangle "Smart Line" {
+  usecase "Create Trip" as UC1
+  usecase "Assign Employee to Trip" as UC2
+  usecase "Check Schedule & Capacity" as UC3
+  usecase "Update Trip Status" as UC4
+  usecase "Report Vehicle Breakdown" as UC5
+  usecase "Record Attendance" as UC6
+  usecase "View Trip Status" as UC7
+  usecase "View Attendance" as UC8
+  usecase "Submit Complaint" as UC9
+  usecase "Handle Complaint" as UC10
+  usecase "Escalate Complaint" as UC11
+  usecase "Manage Company Data" as UC12
+  usecase "View Wallet & Transactions" as UC13
+  usecase "Manage Users & Roles" as UC14
+  usecase "Send Notifications" as UC15
+}
+
+' Company Manager
+CM --> UC1
+CM --> UC2
+CM --> UC7
+CM --> UC8
+CM --> UC12
+CM --> UC13
+
+' Employee
+EM --> UC7
+EM --> UC8
+EM --> UC9
+
+' Captain
+CA --> UC4
+CA --> UC6
+CA --> UC7
+
+' Call Center Agent
+AG --> UC10
+AG --> UC11
+
+' Admin
+AD --> UC14
+AD --> UC11
+
+' System (async notifications)
+SY --> UC15
+
+' Include / Extend relationships
+UC2 ..> UC3 : <<include>>
+UC1 ..> UC3 : <<include>>
+UC4 ..> UC5 : <<extend>>
+UC10 ..> UC11 : <<extend>>
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml
+' Day 2 — Task 23: Sequence Diagram — Real-Time Trip Status Update
+' Hand-drawn original: docs/handwritten/day2-sequence-diagram.jpg (mandatory first)
+' Shows: mobile app -> API -> database -> pub/sub -> WebSocket gateway -> dashboard
+' Includes: failure branch (WebSocket disconnected) and multi-instance acknowledgement
+
+actor Captain as CAP
+participant "Mobile App" as APP
+participant "API (instance 1..n)" as API
+database "PostgreSQL" as DB
+queue "Redis Pub/Sub" as PUB
+participant "WebSocket Gateway" as WS
+participant "Dashboard Client" as DASH
+
+CAP -> APP : taps "Start Trip"
+APP -> API : POST /trips/:id/status {Started}
+activate API
+API -> DB : validate transition against state machine
+DB --> API : legal
+API --> APP : 200 OK
+API -> PUB : publish trip.status.started {tripId, ts}
+deactivate API
+
+PUB -> WS : deliver event (channel shared by all instances)
+WS -> DASH : push {tripId, status: Started, ts}
+DASH --> WS : ack
+
+alt WebSocket disconnected (client offline)
+  WS --> WS : buffer missed event per client
+  DASH -> WS : reconnect + catch-up request
+  WS -> DASH : replay missed events since last ack
+end
+
+note over API, PUB : API is horizontally scaled (2+ instances);\nthe publisher and the gateway are decoupled via the channel,\nso the event reaches the client regardless of which instance handled the request
+
+@enduml
