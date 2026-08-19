@@ -1,0 +1,59 @@
+@startuml
+' Day 4 — Task 46: High-Level System Architecture (digitized)
+' Hand-drawn original: docs/handwritten/day4-architecture.jpg (mandatory first)
+' Rule: 2+ API instances behind a load balancer (a single-instance design fails);
+' every arrow direction is meaningful; acknowledged SPOFs are stated.
+
+skinparam componentStyle rectangle
+skinparam nodeFontSize 12
+
+actor "Employee App (mobile)" as EA
+actor "Captain App (mobile)" as CA
+actor "Manager Dashboard (web)" as DB
+actor "Call Center Tool (web)" as CC
+actor "Admin Console (web)" as AD
+
+node "Load Balancer\n(HA pair)" as LB
+node "API Instances\n(2..n)" as API
+node "WebSocket Gateway\n(2..n)" as WS
+database "PostgreSQL\n(primary + standby)" as PG
+database "Redis\n(cache + Pub/Sub)" as REDIS
+queue "Message Queue\n(worker pool)" as MQ
+node "Notification Workers" as NW
+
+EA --> LB : HTTPS
+CA --> LB : HTTPS
+DB --> LB : HTTPS
+CC --> LB : HTTPS
+AD --> LB : HTTPS
+
+LB --> API : route REST
+LB --> WS : route WS upgrade
+
+API --> PG : read/write (source of truth)
+API --> REDIS : cache (keyed by tenant)
+API --> MQ : publish domain events
+WS --> REDIS : subscribe to channels
+WS --> API : catch-up reads on reconnect
+
+MQ --> NW : deliver (at-least-once)
+NW --> PG : write notifications / retries
+NW --> REDIS : idempotency dedup
+
+note bottom of API
+  Horizontally scalable; NO instance-local state (NFR-005).
+  Publisher and gateway are decoupled via Redis channels —
+  an event reaches the client regardless of which instance
+  handled the request (Task 23 / Task 55).
+end note
+
+note bottom of PG
+  Single source of truth — the ONLY acknowledged SPOF,
+  mitigated by standby replica + backups (NFR-007).
+end note
+
+note bottom of REDIS
+  Transport and cache ONLY — never the source of truth.
+  Outage => polling fallback, no data loss (NFR-008).
+end note
+@enduml

@@ -1,0 +1,222 @@
+openapi: 3.0.3
+info:
+  title: Smart Line API — Trips
+  version: 1.0.0
+  description: >
+    Trip endpoints. Tenant scope is bound from the authenticated principal
+    (Task 53); cursor pagination (Task 42); illegal state transitions return
+    409 with current/attempted states (Task 25).
+servers:
+  - url: https://api.smartline.example/api/v1
+security:
+  - bearerAuth: []
+paths:
+  /trips:
+    get:
+      summary: List trips (tenant-scoped, cursor-paginated)
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [Scheduled, Assigned, Started, In Progress, Completed, Cancelled, Failed]
+      responses:
+        '200':
+          description: A page of trips
+          headers:
+            X-Next-Cursor:
+              schema: { type: string }
+              description: Pass this in ?cursor= for the next page; absent = last page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Trip' } }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    post:
+      summary: Create a trip (Scheduled initial state)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TripCreate' }
+      responses:
+        '201':
+          description: Trip created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trip' }
+        '409':
+          description: Captain or vehicle conflict (FR-002/FR-003)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /trips/{tripId}:
+    get:
+      summary: Get a trip
+      parameters:
+        - { $ref: '#/components/parameters/TripId' }
+      responses:
+        '200':
+          description: The trip
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trip' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /trips/{tripId}/status:
+    patch:
+      summary: Transition trip state (Task 25 state machine)
+      parameters:
+        - { $ref: '#/components/parameters/TripId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state:
+                  type: string
+                  enum: [Started, In Progress, Completed, Cancelled, Failed]
+      responses:
+        '200':
+          description: Transition applied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trip' }
+        '409':
+          description: Illegal transition
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Error' }
+                  - type: object
+                    properties:
+                      currentState: { type: string }
+                      attemptedState: { type: string }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /trips/{tripId}/assignments:
+    post:
+      summary: Assign an employee (capacity + overlap + state, FR-005..007)
+      parameters:
+        - { $ref: '#/components/parameters/TripId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeId]
+              properties:
+                employeeId: { type: integer }
+      responses:
+        '201':
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tripId: { type: integer }
+                  employeeId: { type: integer }
+                  assignedAt: { type: string, format: date-time }
+        '409':
+          description: Capacity / overlap / illegal-state conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema: { type: integer }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+      description: Opaque base64 cursor (Task 42)
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  schemas:
+    Trip:
+      type: object
+      properties:
+        id: { type: integer }
+        routeId: { type: integer }
+        vehicleId: { type: integer }
+        captainId: { type: integer }
+        tripDate: { type: string, format: date }
+        startTime: { type: string }
+        endTime: { type: string }
+        state:
+          type: string
+          enum: [Scheduled, Assigned, Started, In Progress, Completed, Cancelled, Failed]
+        stopsSnapshot: { type: array, items: { type: object } }
+    TripCreate:
+      type: object
+      required: [routeId, vehicleId, captainId, tripDate, startTime, endTime]
+      properties:
+        routeId: { type: integer }
+        vehicleId: { type: integer }
+        captainId: { type: integer }
+        tripDate: { type: string, format: date }
+        startTime: { type: string }
+        endTime: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object }
+            requestId: { type: string }
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found (or hidden by tenant isolation — same response, NFR-009)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
