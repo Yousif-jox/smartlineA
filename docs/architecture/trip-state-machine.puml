@@ -1,0 +1,24 @@
+@startuml
+' Day 2 — Task 25: Trip State Machine (digitized)
+' 7 states; Completed/Cancelled/Failed are terminal
+
+[*] --> Scheduled
+Scheduled --> Assigned : employees assigned
+Scheduled --> Cancelled : cancelled before assignment
+Assigned --> Started : captain starts run
+Assigned --> Cancelled : cancelled after assignment
+Started --> In_Progress : trip underway
+Started --> Failed : breakdown right after start
+In_Progress --> Completed : all stops delivered
+In_Progress --> Cancelled : mid-route cancellation
+In_Progress --> Failed : breakdown / cannot complete
+Completed --> [*]
+Cancelled --> [*]
+Failed --> [*]
+
+note right of In_Progress
+  Terminal states have NO
+  outgoing transitions.
+  Reschedule = new trip (Cancelled -> Scheduled is ILLEGAL).
+end note
+@enduml

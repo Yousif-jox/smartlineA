@@ -1,0 +1,20 @@
+-- Rollback 001: drop all tables in reverse FK-safe order
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS notification;
+DROP TABLE IF EXISTS complaint;
+DROP TABLE IF EXISTS account;
+DROP TABLE IF EXISTS wallet_transaction;
+DROP TABLE IF EXISTS wallet;
+DROP TABLE IF EXISTS attendance_event;
+DROP TABLE IF EXISTS attendance;
+DROP TABLE IF EXISTS trip_employee;
+DROP TABLE IF EXISTS trip;
+DROP TABLE IF EXISTS route_stop;
+DROP TABLE IF EXISTS route;
+DROP TABLE IF EXISTS vehicle;
+DROP TABLE IF EXISTS captain;
+DROP TABLE IF EXISTS employee_pickup;
+DROP TABLE IF EXISTS pickup_location;
+DROP TABLE IF EXISTS employee;
+DROP TABLE IF EXISTS branch;
+DROP TABLE IF EXISTS company;

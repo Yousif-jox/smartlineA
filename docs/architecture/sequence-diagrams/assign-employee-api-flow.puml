@@ -1,0 +1,35 @@
+@startuml
+' Day 4 — Task 59: API Flow — Assign Employee to Trip (digitized)
+' Hand-drawn original: docs/handwritten/day4-api-flow.jpg (mandatory first)
+' client -> auth -> business -> DB -> cache invalidation -> queue
+
+actor "Company Manager" as MGR
+participant "API (any instance)" as API
+participant "Auth Middleware" as AUTH
+participant "Tenant Middleware" as TEN
+participant "Trip Service" as SVC
+database "PostgreSQL" as DB
+database "Redis (cache)" as REDIS
+queue "Message Queue" as MQ
+
+MGR -> API : POST /api/v1/trips/5/assignments {employeeId: 42}
+API -> AUTH : verify JWT (role=company_manager)
+AUTH --> API : principal {accountId, companyId: 1, role}
+API -> TEN : bind tenant = principal.companyId (Task 53)
+API -> SVC : assign(tripId=5, employeeId=42, tenant=1)
+
+SVC -> DB : BEGIN
+SVC -> DB : state check (Task 25) + tenant filter
+DB --> SVC : Scheduled -> assignable
+SVC -> DB : capacity & overlap checks (Task 38, FOR UPDATE)
+DB --> SVC : ok
+SVC -> DB : INSERT trip_employee
+DB --> SVC : committed
+SVC -> REDIS : DEL {1}:trips:2026-08-19 (invalidate list)
+SVC -> MQ : publish trip.employee-assigned {eventId, tenant:1}
+SVC --> API : 201 {tripId, employeeId, assignedAt}
+API --> MGR : 201 Created
+
+note over SVC, DB : one transaction; failures ROLLBACK (Task 47)\nany failure -> typed error envelope (Task 54)
+
+@enduml

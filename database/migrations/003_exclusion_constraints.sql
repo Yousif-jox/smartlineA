@@ -16,10 +16,14 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- Captain: no two ACTIVE trips may overlap in time.
 -- Cancelled/Failed trips do NOT reserve the captain (partial
 -- exclusion constraint — consistent with the Day 2 scheduling model).
+-- NOTE: tsrange (not tstzrange) — tstzrange(timestamp) depends on the
+-- session timezone (STABLE, not IMMUTABLE) and PostgreSQL rejects it in
+-- index expressions. All times are company-local by documented assumption,
+-- so tsrange over (date + time) is semantically correct AND immutable.
 ALTER TABLE trip ADD CONSTRAINT ex_captain_no_overlap
   EXCLUDE USING gist (
     captain_id WITH =,
-    tstzrange(trip_date + start_time, trip_date + end_time) WITH &&
+    tsrange(trip_date + start_time, trip_date + end_time) WITH &&
   )
   WHERE (state <> 'Cancelled' AND state <> 'Failed');
 
@@ -28,7 +32,7 @@ ALTER TABLE trip ADD CONSTRAINT ex_captain_no_overlap
 ALTER TABLE trip ADD CONSTRAINT ex_vehicle_no_overlap
   EXCLUDE USING gist (
     vehicle_id WITH =,
-    tstzrange(trip_date + start_time, trip_date + end_time) WITH &&
+    tsrange(trip_date + start_time, trip_date + end_time) WITH &&
   )
   WHERE (state <> 'Cancelled' AND state <> 'Failed');
 

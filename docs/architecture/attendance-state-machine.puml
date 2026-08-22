@@ -1,0 +1,19 @@
+@startuml
+' Day 2 — Task 26: Attendance State Machine (digitized)
+' Decoupled from Trip state (BR-8); corrections via event model (Task 13)
+
+[*] --> Unknown
+Unknown --> Boarded : captain event
+Unknown --> Not_Boarded : captain event
+Unknown --> Absent : captain event
+Unknown --> Cancelled : trip cancelled/failed, no event recorded
+Cancelled --> [*]
+
+note right of Unknown
+  Recorded states (Boarded / Not Boarded / Absent)
+  are factual and preserved.
+  Corrections: newer event with later timestamp wins
+  (Task 13 — latest-timestamp-wins, idempotent).
+  No events accepted after trip Completed.
+end note
+@enduml

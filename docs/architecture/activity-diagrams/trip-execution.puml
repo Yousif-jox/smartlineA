@@ -1,0 +1,29 @@
+@startuml
+' Day 2 — Task 24: Activity Diagram — Daily Trip Execution
+' Hand-drawn original: docs/handwritten/day2-activity-diagram.jpg (mandatory first)
+' Decision points: employee no-show (with grace period) and vehicle breakdown
+
+start
+:Scheduled trip loaded;
+:load assigned employees + route stops;
+repeat
+  :move to next stop;
+  if (employee at pickup?) then (yes)
+    :record Boarded;
+  else (no)
+    if (grace period passed?) then (yes)
+      :record Absent;
+    else (no)
+      :record Not Boarded;
+    endif
+  endif
+  if (vehicle breakdown?) then (yes)
+    :trip -> Failed;
+    stop
+  endif
+repeat while (more stops?) is (yes) not (no)
+:arrive at destination;
+:freeze attendance (trip completed);
+:trip -> Completed;
+stop
+@enduml

@@ -22,7 +22,7 @@ Any ONE of these is enough to produce the incident; all four were present.
 ALTER TABLE trip ADD CONSTRAINT ex_captain_no_overlap
   EXCLUDE USING gist (
     captain_id WITH =,
-    tstzrange(trip_date + start_time, trip_date + end_time) WITH &&
+    tsrange(trip_date + start_time, trip_date + end_time) WITH &&
   )
   WHERE (state <> 'Cancelled' AND state <> 'Failed');
 ```
