@@ -1,14 +1,33 @@
-# Smart Line Assessment — Days 1–5
+# Smart Line Assessment — Days 1–6
 
 Smart Line is an employee-transportation management platform for companies.
 This repository contains the 7-day engineering assessment work, built as **one
 evolving system** — every day builds on the previous day's artifacts.
 
-## Day 5 — Implementation (current)
+## Day 6 — Testing, Security & Performance (current)
 
-The backend designed on Days 3–4 is implemented as production code with a
-**99/99 green test suite** (45 Day-1 + 19 unit + 35 integration) running
-against a real PostgreSQL (Supabase).
+The Day-5 backend is hardened and proven: **129/129 green locally**
+(45 Day-1 + 84 unit) plus integration suites for tenant isolation, SQL
+injection, wallet TOCTOU stress, RLS and employee-trips pagination running
+against the real PostgreSQL (Supabase).
+
+What Day 6 added:
+
+- **Security fixes found by code review:** cross-tenant reference injection
+  in trip/complaint creates (404, no existence oracle), the call-center dead
+  end (conditional tenant filter), the nondeterministic login (`selectAccount`,
+  deterministic lowest-id), and clean DB-error envelopes (no raw PG messages).
+- **RLS (migration 006):** `ENABLE ROW LEVEL SECURITY` on all 20
+  tenant-scoped tables, one policy per table, `SECURITY INVOKER` views, and a
+  NOLOGIN proof role — fail-closed without the tenant context.
+- **The 4-second query (migrations 007 + endpoint):** `GET /employees/:id/trips`
+  with keyset pagination, fixed by the `(company_id, trip_date, start_time)`
+  index; benchmark scripts + EXPLAIN ANALYZE before/after.
+- **File-upload guard** (`src/utils/upload.js`): magic-byte sniffing, extension
+  whitelist, size cap, safe filenames — reusable + unit-tested.
+- **Docs:** `docs/security/*`, `docs/debugging/*` (the two root causes),
+  `docs/performance/*`, `docs/day6-report.md`, `docs/day6-signoff.md`,
+  `day6-interview-prep.md`.
 
 ```bash
 # 1) install
@@ -18,33 +37,20 @@ npm install
 #    (DATABASE_URL = your Supabase connection string, JWT_SECRET = any long random string)
 cp .env.example .env
 
-# 3) apply migrations (rollback-safe: npm run migrate:down)
+# 3) apply migrations (rollback-safe: npm run migrate:down) — now includes 006 RLS + 007 index
 npm run migrate
 
-# 4) run the full test suite
+# 4) run the full test suite (129 unit/Day-1 + integration on your DB)
 npm test
 
-# 5) start the API
+# 5) RLS proof
+psql "$DATABASE_URL" -f tests/database/rls_policy_test.sql
+
+# 6) start the API
 npm start        # GET /health → { status: "ok", db: "up" }
 ```
 
-Key areas:
-
-- `src/` — layered backend: routes → services → repositories; JWT auth +
-  RBAC; systemic tenant isolation (404 for cross-tenant, no existence leak);
-  trip state machine (409 with current/attempted states); idempotent wallet
-  transactions; attendance events; complaint lifecycle; unified error
-  envelope; JSON logs with correlation id; Redis-shared rate limiting with
-  in-memory fallback.
-- `database/migrations/` — 5 migrations with matching `.down.sql`
-  (constraints, indexes, captain/vehicle EXCLUDE constraint, refresh tokens,
-  soft deletes).
-- `tests/` — `day1/` (45), `unit/` (19), `integration/` (35) — the
-  integration suites run against your real DATABASE_URL and clean up after
-  themselves.
-- `docs/` — `implementation-summary.md`, `day5-report.md`, `refactoring-notes.md`.
-
-## Days 1–4 (foundation)
+## Days 1–5 (foundation)
 
 - **Day 1 — Requirements & Problem Solving:** `docs/requirements/` (glossary,
   actors, 23 clarification questions, A1–A9 assumptions, FR-01–FR-12,
@@ -60,6 +66,11 @@ Key areas:
 - **Day 4 — Architecture & API:** `docs/architecture/` — HA architecture,
   caching, queues + outbox, multi-instance realtime; `docs/api/` — OpenAPI
   spec, authn/authz, error contract, the systemic IDOR fix.
+- **Day 5 — Implementation:** the designed backend as production code —
+  layered routes → services → repositories, JWT + RBAC, systemic tenant
+  isolation (404 not 403), trip state machine (409), idempotent wallet
+  transactions, attendance events, complaint lifecycle, unified error
+  envelope, JSON logs, rate limiting — **99/99 green on real PostgreSQL**.
 
 ## Daily reports & interview prep
 

@@ -48,7 +48,11 @@ async function main(mode) {
   } else if (mode === 'down') {
     const applied = (await pool.query('SELECT name FROM app_schema_migrations ORDER BY applied_at DESC')).rows.map((r) => r.name);
     for (const file of applied) {
-      const downFile = file.replace('.sql', '.down.sql');
+      // Day-6 fix: the repo convention is `NNN.down.sql` (e.g. 001.down.sql),
+      // but the previous code derived `NNN_name.down.sql` from the up file —
+      // so migrate:down silently SKIPPED every rollback. Match the number.
+      const num = (file.match(/^(\d+)/) || [])[1];
+      const downFile = num ? `${num}.down.sql` : file.replace('.sql', '.down.sql');
       const downPath = path.join(MIGRATIONS_DIR, downFile);
       if (!fs.existsSync(downPath)) { console.warn(`no down file for ${file} — skipped`); continue; }
       console.log(`revert ${file}`);

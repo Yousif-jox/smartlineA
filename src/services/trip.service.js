@@ -9,6 +9,13 @@ async function create(tenant, input) {
   if (!routeId || !vehicleId || !captainId || !tripDate || !startTime || !endTime) {
     throw new ApiError(422, 'VALIDATION_ERROR', 'routeId, vehicleId, captainId, tripDate, startTime, endTime are required');
   }
+  // Day-6 fix (Task 79): every reference must belong to the caller's tenant —
+  // checked BEFORE any conflict query so a cross-tenant id is indistinguishable
+  // from a missing one (404, NFR-009). Previously a company-A manager could
+  // reference company-B's route/vehicle/captain and probe their schedules.
+  if (!(await repo.ownsReferences(tenant, { routeId, vehicleId, captainId }))) {
+    throw new ApiError(404, 'NOT_FOUND', 'Route, vehicle or captain not found');
+  }
   if (await repo.captainConflict(captainId, tripDate, startTime, endTime)) {
     throw new ApiError(409, 'CAPTAIN_CONFLICT', 'Captain already has an overlapping trip');
   }

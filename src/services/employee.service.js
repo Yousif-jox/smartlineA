@@ -41,4 +41,12 @@ async function remove(tenant, id) {
   return { deleted: true };
 }
 
-module.exports = { list, getById, create, update, remove };
+// Day-6 (Task 85/86): manager dashboard — an employee's trips. Tenant-scoped
+// like every other read: a cross-tenant employee is a 404 (NFR-009).
+async function listTrips(tenant, id, query) {
+  const employee = await repo.findById(tenant, id);
+  if (!employee) throw new ApiError(404, 'NOT_FOUND', 'Employee not found');
+  return repo.listTrips(tenant, id, query);
+}
+
+module.exports = { list, getById, create, update, remove, listTrips };

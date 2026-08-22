@@ -29,17 +29,29 @@ async function storeRefresh(accountId, token, ttlDays) {
   return token;
 }
 
+// Day-6 fix (Task 90 — root cause of the intermittent authorization failure):
+// the UNION lookup is NON-deterministic: rows[0] without ORDER BY is undefined,
+// so if two accounts share a name (or an employee phone equals a staff name) the
+// login could authenticate a DIFFERENT account depending on row order. The fix
+// makes the choice deterministic: lowest account id wins, and the decision lives
+// in a pure function so it is unit-testable without a database.
+function selectAccount(rows) {
+  if (!rows || rows.length === 0) return null;
+  return [...rows].sort((a, b) => Number(a.id) - Number(b.id))[0];
+}
+
 async function login({ phone, password }) {
   const { rows } = await pool.query(
     `SELECT a.* FROM account a
      JOIN employee e ON e.phone = $1 AND e.company_id = a.company_id
      WHERE a.role = 'employee' AND e.status = 'active'
      UNION
-     SELECT * FROM account WHERE name = $1 AND role <> 'employee'`,
+     SELECT * FROM account WHERE name = $1 AND role <> 'employee'
+     ORDER BY id`,
     [phone],
   );
   // NOTE: simplified lookup by phone/name; production matches by unique identifier
-  const account = rows[0];
+  const account = selectAccount(rows);
   if (!account || !(await bcrypt.compare(password, account.credentials_hash))) {
     throw new ApiError(401, 'INVALID_CREDENTIALS', 'Invalid credentials');
   }
@@ -72,4 +84,4 @@ async function logout(refreshToken) {
   await pool.query(`UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1`, [tokenHash]);
 }
 
-module.exports = { login, refresh, logout };
+module.exports = { login, refresh, logout, selectAccount };

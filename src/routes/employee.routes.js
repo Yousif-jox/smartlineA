@@ -32,6 +32,17 @@ router.get('/:id', authorize('employee.read'), async (req, res, next) => {
   } catch (err) { return next(err); }
 });
 
+// Day-6 (Task 85/86): the slow-query endpoint — employee's trips for the
+// dashboard (FR-016). Keyset pagination (cursor), optional date range.
+router.get('/:id/trips', authorize('employee.read'), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return next(new ApiError(422, 'VALIDATION_ERROR', 'invalid id'));
+    const { from, to, cursor, limit } = req.query;
+    return res.json(await service.listTrips(req.tenant, id, { from, to, cursor, limit }));
+  } catch (err) { return next(err); }
+});
+
 router.patch('/:id', authorize('employee.manage'), async (req, res, next) => {
   try {
     const id = Number(req.params.id);

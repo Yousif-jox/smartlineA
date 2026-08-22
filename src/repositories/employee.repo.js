@@ -74,4 +74,35 @@ async function softDelete(tenant, id) {
   return rows.length > 0;
 }
 
-module.exports = { list, findById, create, update, softDelete };
+// Day-6 (Task 85/86): the manager-dashboard query — an employee's trips,
+// tenant-scoped, keyset-paginated (Task 42 cursor, not OFFSET). The (trip_date,
+// start_time, id) keyset predicate makes deep pages cheap: the planner walks
+// the index, it never scans 20M rows to skip 100k pages.
+async function listTrips(tenant, employeeId, { from, to, cursor, limit = 20 } = {}) {
+  const params = [tenant, employeeId];
+  let where = 'te.employee_id = $2 AND t.company_id = $1';
+  if (from) { params.push(from); where += ` AND t.trip_date >= $${params.length}`; }
+  if (to) { params.push(to); where += ` AND t.trip_date <= $${params.length}`; }
+  if (cursor) {
+    params.push(cursor);
+    where += ` AND (t.trip_date, t.start_time, t.id) >
+                 (SELECT trip_date, start_time, id FROM trip
+                  WHERE id = $${params.length} AND company_id = $1)`;
+  }
+  params.push(limit + 1);
+  const { rows } = await pool.query(
+    `SELECT t.id, t.trip_date, t.start_time, t.end_time, t.state,
+            t.route_id, t.vehicle_id, t.captain_id
+     FROM trip_employee te
+     JOIN trip t ON t.id = te.trip_id
+     WHERE ${where}
+     ORDER BY t.trip_date, t.start_time, t.id
+     LIMIT $${params.length}`,
+    params,
+  );
+  const hasMore = rows.length > limit;
+  const data = hasMore ? rows.slice(0, limit) : rows;
+  return { data, nextCursor: hasMore ? String(data[data.length - 1].id) : null };
+}
+
+module.exports = { list, findById, create, update, softDelete, listTrips };

@@ -6,6 +6,12 @@ const { ApiError } = require('../middleware/error');
 async function create(tenant, employeeId, input) {
   const { category, priority } = input || {};
   if (!category) throw new ApiError(422, 'VALIDATION_ERROR', 'category is required');
+  // Day-6 fix (Task 79): the employee must belong to the caller's tenant —
+  // previously any employeeId (even another company's) was accepted.
+  // Callers without a tenant cannot create complaints (RBAC denies it anyway).
+  if (tenant == null || !(await repo.employeeInTenant(tenant, employeeId))) {
+    throw new ApiError(404, 'NOT_FOUND', 'Employee not found');
+  }
   return repo.create(tenant, { employeeId, category, priority: priority || 'normal' });
 }
 

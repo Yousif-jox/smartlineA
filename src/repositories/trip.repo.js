@@ -15,6 +15,24 @@ async function findById(tenant, id) {
   return rows[0] || null;
 }
 
+// Day-6 fix (Task 79): a trip's references (route/vehicle/captain) must belong
+// to the caller's tenant. A cross-tenant reference returns false -> service 404,
+// identical to "not found" (NFR-009, no existence oracle). Route has no direct
+// company_id, so it is checked through branch.company_id.
+async function ownsReferences(tenant, { routeId, vehicleId, captainId }) {
+  const { rows } = await pool.query(
+    `SELECT
+       EXISTS (SELECT 1 FROM route r
+               JOIN branch b ON b.id = r.branch_id
+               WHERE r.id = $2 AND b.company_id = $1)       AS route_ok,
+       EXISTS (SELECT 1 FROM vehicle WHERE id = $3 AND company_id = $1) AS vehicle_ok,
+       EXISTS (SELECT 1 FROM captain WHERE id = $4 AND company_id = $1) AS captain_ok`,
+    [tenant, routeId, vehicleId, captainId],
+  );
+  const r = rows[0];
+  return Boolean(r && r.route_ok && r.vehicle_ok && r.captain_ok);
+}
+
 // Build the stops snapshot from the route (Day 2 decision: written once, immutable)
 async function buildStopsSnapshot(tenant, routeId) {
   const { rows } = await pool.query(
@@ -146,4 +164,4 @@ async function removeAssignment(tenant, tripId, employeeId) {
   return rows.length > 0;
 }
 
-module.exports = { findById, create, captainConflict, vehicleConflict, updateState, assignWithLock, removeAssignment };
+module.exports = { findById, ownsReferences, create, captainConflict, vehicleConflict, updateState, assignWithLock, removeAssignment };
